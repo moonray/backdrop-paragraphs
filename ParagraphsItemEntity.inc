@@ -1,4 +1,5 @@
 <?php
+
 /**
  * @file
  * Entity implementation for the paragraphs entity.
@@ -10,7 +11,7 @@
 class ParagraphsItemEntity extends Entity {
 
   /**
-   * paragraphs field info.
+   * Paragraphs field info.
    *
    * @var array
    */
@@ -19,21 +20,21 @@ class ParagraphsItemEntity extends Entity {
   /**
    * The host entity object.
    *
-   * @var object
+   * @var EntityInterface
    */
   protected $hostEntity;
 
   /**
    * The host entity ID.
    *
-   * @var integer
+   * @var int
    */
   protected $hostEntityId;
 
   /**
    * The host entity revision ID if this is not the default revision.
    *
-   * @var integer
+   * @var int
    */
   protected $hostEntityRevisionId;
 
@@ -61,14 +62,14 @@ class ParagraphsItemEntity extends Entity {
   /**
    * Entity ID.
    *
-   * @var integer
+   * @var int
    */
   public $item_id;
 
   /**
-   * paragraphs revision ID.
+   * Paragraphs revision ID.
    *
-   * @var integer
+   * @var int
    */
   public $revision_id;
 
@@ -89,8 +90,8 @@ class ParagraphsItemEntity extends Entity {
   /**
    * Whether the paragraphs item is archived, i.e. not in use.
    *
-   * @see ParagraphsItemEntity::isInUse()
    * @var bool
+   * @see ParagraphsItemEntity::isInUse()
    */
   public $archived = FALSE;
 
@@ -103,12 +104,15 @@ class ParagraphsItemEntity extends Entity {
 
   /**
    * Constructs the entity object.
+   *
+   * @throws Exception
    */
   public function __construct(array $values = array(), $entityType = NULL) {
-    parent::__construct($values, 'paragraphs_item');
+    parent::__construct($values);
     if (isset($this->field_name)) {
 
-      // Ok, we have the field name property, we can proceed and check the field's type
+      // Ok, we have the field name property, we can proceed and check the
+      // field's type.
       $field_info = $this->fieldInfo();
 
       // Check if we have field info, if not, our field is deleted.
@@ -124,16 +128,137 @@ class ParagraphsItemEntity extends Entity {
   }
 
   /**
-   * Provides info about the field on the host entity, which embeds this
-   * paragraphs item.
+   * Implements EntityInterface::id().
+   */
+  public function id() {
+    return isset($this->item_id) ? $this->item_id : NULL;
+  }
+
+  /**
+   * Implements EntityInterface::label().
+   */
+  public function label() {
+    return $this->name;
+  }
+
+  /**
+   * Implements EntityInterface::entityType().
+   */
+  public static function entityType() {
+    return 'paragraphs_item';
+  }
+
+  /**
+   * Implements EntityInterface::bundle().
+   */
+  public function bundle() {
+    return $this->vocabulary;
+  }
+
+  /**
+   * Implements EntityInterface::createAccess().
+   */
+  public static function createAccess($bundle = NULL, $account = NULL) {
+    $permissions = &backdrop_static(__METHOD__, array());
+
+    // If no user object is supplied, the access check is for the current user.
+    if (empty($account)) {
+      $account = $GLOBALS['user'];
+    }
+
+    // If we've already checked access for this bundle, user and op, return from
+    // cache. Otherwise, we are optimistic and consider that the user can
+    // view / update / delete or create a paragraph.
+    if (isset($permissions[$account->uid][$bundle])) {
+      return $permissions[$account->uid][$bundle];
+    }
+
+    // We grant access to the paragraph item if both of the following conditions are met:
+    // - No modules say to deny access.
+    // - At least one module says to grant access.
+    // If no module specified either allow or deny, we always allow.
+    // @todo Does the create op include an Entity?
+    $access = module_invoke_all('paragraphs_item_access', $entity, $op, $account);
+    if (in_array(PARAGRAPHS_ITEM_ACCESS_DENY, $access, TRUE)) {
+      $user_access_permission = FALSE;
+    }
+    elseif (in_array(PARAGRAPHS_ITEM_ACCESS_ALLOW, $access, TRUE)) {
+      $user_access_permission = TRUE;
+    }
+    else {
+      // Deny access by default.
+      $user_access_permission = FALSE;
+    }
+
+    // Store the result of the permission in our matrix.
+    $permissions[$account->uid][$cid][$op] = $user_access_permission;
+
+    return $permissions[$account->uid][$cid][$op];
+  }
+
+  /**
+   * Implements EntityInterface::access().
+   */
+  public function access($op, $account = NULL) {
+    $permissions = &backdrop_static(__FUNCTION__, array());
+
+    // If no user object is supplied, the access check is for the current user.
+    if (empty($account)) {
+      $account = $GLOBALS['user'];
+    }
+
+    // If the $op was not one of the supported ones, we return access denied.
+    if (!in_array($op, array('view', 'update', 'delete'), TRUE)) {
+      return FALSE;
+    }
+
+    // When OP is create, or the entity is new, the bundle is the cache key.
+    if ($this->isNew()) {
+      $cid = $this->bundle();
+    }
+    // Else our cid is entity specific.
+    else {
+      $cid = $this->id() . '_' . $this->revision_id;
+    }
+
+    // If we've already checked access for this bundle, user and op, return from
+    // cache. Otherwise, we are optimistic and consider that the user can
+    // view / update / delete or create a paragraph.
+    if (isset($permissions[$account->uid][$cid][$op])) {
+      return $permissions[$account->uid][$cid][$op];
+    }
+
+    // We grant access to the paragraph item if both of the following conditions are met:
+    // - No modules say to deny access.
+    // - At least one module says to grant access.
+    // If no module specified either allow or deny, we always allow.
+    $access = module_invoke_all('paragraphs_item_access', $this, $op, $account);
+    if (in_array(PARAGRAPHS_ITEM_ACCESS_DENY, $access, TRUE)) {
+      $user_access_permission = FALSE;
+    }
+    elseif (in_array(PARAGRAPHS_ITEM_ACCESS_ALLOW, $access, TRUE)) {
+      $user_access_permission = TRUE;
+    }
+    else {
+      // Deny access by default.
+      $user_access_permission = FALSE;
+    }
+
+    // Store the result of the permission in our matrix.
+    $permissions[$account->uid][$cid][$op] = $user_access_permission;
+
+    return $permissions[$account->uid][$cid][$op];
+  }
+
+  /**
+   * Provides info about the field on the host entity, which embeds this paragraphs item.
    */
   public function fieldInfo() {
     return field_info_field($this->field_name);
   }
 
   /**
-   * Provides info of the field instance containing the reference to this
-   * paragraphs item.
+   * Provides info of the field instance containing the reference to this paragraphs item.
    */
   public function instanceInfo() {
     return field_info_instance($this->hostEntityType(), $this->field_name, $this->hostEntityBundle());
@@ -162,42 +287,27 @@ class ParagraphsItemEntity extends Entity {
       return '';
     }
 
-    // Should only happen when there is something wrong
+    // Should only happen when there is something wrong.
     return t('Unconnected paragraphs item');
-  }
-
-  /**
-   * Returns the path used to view the entity.
-   */
-  public function path() {
-    return;
-  }
-
-  /**
-   * Returns the URI as returned by entity_uri().
-   */
-  public function defaultUri() {
-    return array(
-      'path' => $this->path(),
-    );
   }
 
   /**
    * Sets the host entity. Only possible during creation of a item.
    *
-   * @param $entity_type
+   * @param string $entity_type
    *   The entity type of the host.
-   * @param $entity
+   * @param EntityInterface $entity
    *   The host entity.
-   * @param $langcode
+   * @param string $langcode
    *   (optional) The field language code we should use for host entity.
-   * @param $create_link
+   * @param bool $create_link
    *   (optional) Whether a field-item linking the host entity to the field
    *   collection item should be created.
+   *
    * @throws Exception
    *   When you try to set the host when the item has already been created.
    */
-  public function setHostEntity($entity_type, $entity, $langcode = LANGUAGE_NONE, $create_link = TRUE) {
+  public function setHostEntity($entity_type, EntityInterface $entity, $langcode = LANGUAGE_NONE, $create_link = TRUE) {
     $this->hostEntityType = $entity_type;
     $this->hostEntity = $entity;
     $this->langcode = $langcode;
@@ -210,6 +320,7 @@ class ParagraphsItemEntity extends Entity {
     }
     // We are create a new paragraphs for a non-default entity, thus
     // set archived to TRUE.
+    // @todo There is no entity_revision_is_default() function.
     if (!entity_revision_is_default($entity_type, $entity)) {
       $this->hostEntityId = FALSE;
       $this->archived = TRUE;
@@ -224,17 +335,17 @@ class ParagraphsItemEntity extends Entity {
   /**
    * Function to force change the host entity of this paragraph item.
    *
-   * @param $entity
+   * @param EntityInterface $entity
    *   The entity to force the host to.
    */
-  public function forceHostEntity($entity) {
+  public function forceHostEntity(EntityInterface $entity) {
     $this->hostEntity = $entity;
   }
 
   /**
    * Function to force change the host entity type of this paragraph item.
    *
-   * @param $entity_type
+   * @param string $entity_type
    *   The entity type to force the host to.
    */
   public function forceHostEntityType($entity_type) {
@@ -243,6 +354,9 @@ class ParagraphsItemEntity extends Entity {
 
   /**
    * Returns the host entity, which embeds this paragraph item.
+   *
+   * @return EntityInterface
+   *   Returns the host entity.
    */
   public function hostEntity() {
     $this->fetchHostDetails();
@@ -250,8 +364,7 @@ class ParagraphsItemEntity extends Entity {
   }
 
   /**
-   * Returns the entity type of the host entity, which embeds this
-   * paragraph item.
+   * Returns the entity type of the host entity, which embeds this paragraph item.
    */
   public function hostEntityType() {
     return $this->hostEntityType;
@@ -272,8 +385,7 @@ class ParagraphsItemEntity extends Entity {
   }
 
   /**
-   * Returns the bundle of the host entity, which embeds this paragraphs
-   * item.
+   * Returns the bundle of the host entity, which embeds this paragraphs item.
    */
   public function hostEntityBundle() {
     return $this->hostEntityBundle;
@@ -308,10 +420,12 @@ class ParagraphsItemEntity extends Entity {
           $this->hostEntityBundle = (isset($data_values->{$host_entity_keys['bundle']}) ? $data_values->{$host_entity_keys['bundle']} : NULL);
 
           if ($this->isInUse()) {
-            $this->hostEntity = entity_load_single($this->hostEntityType, $this->hostEntityId);
+            $this->hostEntity = entity_load($this->hostEntityType, $this->hostEntityId);
           }
           elseif ($this->hostEntityRevisionId) {
-            $this->hostEntity = entity_revision_load($this->hostEntityType, $this->hostEntityRevisionId);
+            // There is no entity_revision_load() function.
+            $entities = entity_load_multiple($this->hostEntityType, FALSE, array('vid' => $this->hostEntityRevisionId));
+            $this->hostEntity = reset($entities);
           }
 
           $this->fetchedHostEntityDetails = TRUE;
@@ -335,8 +449,7 @@ class ParagraphsItemEntity extends Entity {
   }
 
   /**
-   * Determines the $delta of the reference pointing to this paragraph
-   * item.
+   * Determines the $delta of the reference pointing to this paragraph item.
    */
   public function delta() {
     if (($entity = $this->hostEntity()) && isset($entity->{$this->field_name})) {
@@ -367,7 +480,7 @@ class ParagraphsItemEntity extends Entity {
   /**
    * Determines whether this paragraphs item revision is in use.
    *
-   * paragraphs items may be contained in from non-default host entity
+   * Paragraphs items may be contained in from non-default host entity
    * revisions. If the paragraphs item does not appear in the default
    * host entity revision, the item is actually not used by default and so
    * marked as 'archived'.
@@ -377,6 +490,13 @@ class ParagraphsItemEntity extends Entity {
    */
   public function isInUse() {
     return $this->default_revision && !$this->archived;
+  }
+
+  /**
+   * Implements EntityInterface::uri().
+   */
+  public function uri() {
+    return FALSE;
   }
 
   /**
@@ -392,10 +512,15 @@ class ParagraphsItemEntity extends Entity {
    * reference on this paragraphs item during saving. So do not skip
    * saving the host for creating items.
    *
-   * @param $skip_host_save
+   * @param bool $skip_host_save
    *   (internal) If TRUE is passed, the host entity is not saved automatically
    *   and therefore no link is created between the host and the item or
    *   revision updates might be skipped. Use with care.
+   *
+   * @return int
+   *   Either SAVED_NEW or SAVED_UPDATED, depending on the operation performed.
+   *
+   * @throws Exception
    */
   public function save($skip_host_save = FALSE) {
 
@@ -414,6 +539,7 @@ class ParagraphsItemEntity extends Entity {
       if (!empty($this->revision) || !empty($this->is_new_revision)) {
         $host_entity->revision = TRUE;
         if (!empty($this->default_revision)) {
+          // @todo There is no entity_revision_set_default() function.
           entity_revision_set_default($this->hostEntityType, $host_entity);
         }
       }
@@ -424,9 +550,9 @@ class ParagraphsItemEntity extends Entity {
         $host_entity->{$this->field_name}[$this->langcode][$delta] = array('entity' => $this);
       }
       else {
-        $host_entity->{$this->field_name}[$this->langcode][] =  array('entity' => $this);
+        $host_entity->{$this->field_name}[$this->langcode][] = array('entity' => $this);
       }
-      return entity_save($this->hostEntityType, $host_entity);
+      return $host_entity->save();
     }
   }
 
@@ -437,7 +563,7 @@ class ParagraphsItemEntity extends Entity {
     $delta = $this->delta();
     if ($this->item_id && isset($delta)) {
       unset($this->hostEntity->{$this->field_name}[$this->langcode][$delta]);
-      entity_save($this->hostEntityType, $this->hostEntity);
+      $this->hostEntity->save();
     }
   }
 
@@ -448,7 +574,6 @@ class ParagraphsItemEntity extends Entity {
    * a paragraphs item on the default revision of the host should not
    * delete the collection item from archived revisions too. Instead, we delete
    * the current default revision and archive the paragraph.
-   *
    */
   public function deleteRevision($skip_host_update = FALSE) {
     if (!$this->revision_id) {
@@ -461,7 +586,9 @@ class ParagraphsItemEntity extends Entity {
       $this->deleteHostEntityReference();
     }
 
+    // @todo There is no Entity::isDefaultRevision() function.
     if (!$this->isDefaultRevision()) {
+      // @todo There is no entity_revision_delete() function.
       entity_revision_delete('paragraphs_item', $this->revision_id);
     }
     // If deleting the default revision, take care!
@@ -483,30 +610,15 @@ class ParagraphsItemEntity extends Entity {
           ->condition('item_id', $this->item_id)
           ->execute();
         entity_get_controller('paragraphs_item')->resetCache(array($this->item_id));
+        // @todo There is no entity_revision_delete() function.
         entity_revision_delete('paragraphs_item', $this->revision_id);
       }
     }
   }
 
   /**
-   * Export the paragraphs item.
-   *
-   * Since paragraphs entities are not directly exportable (that is, do not
-   * have 'exportable' set to TRUE in hook_entity_info()) and since Features
-   * calls this method when exporting the paragraphs as a field attached
-   * to another entity, we return the export in the format expected by
-   * Features, rather than in the normal Entity::export() format.
-   */
-  public function export($prefix = '') {
-    // Based on code in EntityDefaultFeaturesController::export_render().
-    $export = "entity_import('" . $this->entityType() . "', '";
-    $export .= addcslashes(parent::export(), '\\\'');
-    $export .= "')";
-    return $export;
-  }
-
-  /**
    * Ensure file fields on the entity have their URIs loaded for previews.
+   *
    * Copied from #1447338-7, thanks!
    */
   public function view($view_mode = 'full', $langcode = NULL, $page = NULL) {
@@ -532,6 +644,7 @@ class ParagraphsItemEntity extends Entity {
         }
       }
     }
+    // @todo There is no Entity::view() function.
     return entity_get_controller($this->entityType)->view(array($this), $view_mode, $langcode, $page);
   }
 
@@ -553,15 +666,7 @@ class ParagraphsItemEntity extends Entity {
 
     // Also key the returned array with the variable names so the method may
     // be easily overridden and customized.
-    return drupal_map_assoc(array_keys($vars));
+    return backdrop_map_assoc(array_keys($vars));
   }
 
-  /**
-   * Magic method to invoke setUp() on unserialization.
-   *
-   * @todo: Remove this once it appears in a released entity API module version.
-   */
-  public function __wakeup() {
-    $this->setUp();
-  }
 }

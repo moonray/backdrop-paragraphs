@@ -8,25 +8,9 @@
 /**
  * Defines tests for paragraphs.
  */
-class ParagraphsWebTestCase extends DrupalWebTestCase {
+class ParagraphsWebTestCase extends BackdropWebTestCase {
 
   protected $privilegedUser;
-
-  /**
-   * Give display information to the SimpleTest system.
-   *
-   * getInfo() returns a keyed array of information for SimpleTest to show.
-   *
-   * It's a good idea to organize your tests consistently using the 'group'
-   * key.
-   */
-  public static function getInfo() {
-    return array(
-      'name' => 'Paragraphs test',
-      'description' => 'Ensure that the simpletest_example content type provided functions properly.',
-      'group' => 'Paragraphs',
-    );
-  }
 
   /**
    * {@inheritdoc}
@@ -41,7 +25,7 @@ class ParagraphsWebTestCase extends DrupalWebTestCase {
     features_revert_module('paragraphs_test');
 
     // Create with a user rolegiven by the feature.
-    $this->privilegedUser = $this->drupalCreateUserWithRole('ptest creator');
+    $this->privilegedUser = $this->backdropCreateUserWithRole('ptest creator');
   }
 
   /**
@@ -49,12 +33,12 @@ class ParagraphsWebTestCase extends DrupalWebTestCase {
    */
   public function testPanelizer() {
 
-    $this->drupalLogin($this->privilegedUser);
+    $this->backdropLogin($this->privilegedUser);
 
-    $this->drupalGet('node/add/paragraph-test');
+    $this->backdropGet('node/add/paragraph-test');
 
     // Add a new paragraph before saving node.
-    $this->drupalPost(NULL, array(), t('Add new Paragraph'));
+    $this->backdropPost(NULL, array(), t('Add new Paragraph'));
 
     $title = $this->randomString(20);
     $value1 = $this->randomString(20);
@@ -62,22 +46,22 @@ class ParagraphsWebTestCase extends DrupalWebTestCase {
       'title' => $title,
       'field_paragraphs[und][0][field_ptest_text][und][0][value]' => $value1,
     );
-    $this->drupalPost(NULL, $create_edit, t('Save'));
+    $this->backdropPost(NULL, $create_edit, t('Save'));
 
     $this->assertRaw(t('!post %title has been created.', array('!post' => 'Paragraph Test', '%title' => $title)), 'Paragraph test node created.');
     $this->assertText(check_plain($value1), 'First value of paragraph was rendered.');
 
     // Update the created node.
     $node_url = $this->getUrl();
-    $this->drupalGet($node_url . '/edit');
+    $this->backdropGet($node_url . '/edit');
 
-    $this->drupalPost(NULL, array(), t('Add another Paragraph'));
+    $this->backdropPost(NULL, array(), t('Add another Paragraph'));
 
     $value2 = $this->randomString(20);
     $update_edit = array(
       'field_paragraphs[und][1][field_ptest_text][und][0][value]' => $value2,
     );
-    $this->drupalPost(NULL, $update_edit, t('Save'));
+    $this->backdropPost(NULL, $update_edit, t('Save'));
 
     $this->assertRaw(t('!post %title has been updated.', array('!post' => 'Paragraph Test', '%title' => $title)), 'Paragraph test node updated.');
     $this->assertText(check_plain($value1), 'First value of paragraph was rendered.');
@@ -88,36 +72,38 @@ class ParagraphsWebTestCase extends DrupalWebTestCase {
   /**
    * Helper to create a user with a given role.
    *
-   * @param $role_name
-   * @return bool|\stdClass
+   * @param string $role_name
+   *
+   * @return bool|object
+   *
    * @throws \Exception
    *
-   * @see DrupalWebTestCase::drupalCreateUser()
+   * @see BackdropWebTestCase::backdropCreateUser()
    */
-  protected function drupalCreateUserWithRole($role_name) {
+  protected function backdropCreateUserWithRole($role_name) {
 
-    $role = user_role_load_by_name($role_name);
+    $role = user_role_load($role_name);
     if (!$role) {
       return FALSE;
     }
 
     // Create a user assigned to that role.
-    $edit = array();
-    $edit['name']   = $this->randomName();
-    $edit['mail']   = $edit['name'] . '@example.com';
-    $edit['pass']   = user_password();
-    $edit['status'] = 1;
-    $edit['roles'] = array($role->rid => $role->rid);
+    $account = backdrop_anonymous_user();
+    $account->name = $this->randomName();
+    $account->mail = $account->name . '@example.com';
+    $account->pass = user_password();
+    $account->status = 1;
+    $account->roles = array($role->rid => $role->rid);
 
-    $account = user_save(drupal_anonymous_user(), $edit);
+    $account->save();
 
-    $this->assertTrue(!empty($account->uid), t('User created with name %name and pass %pass', array('%name' => $edit['name'], '%pass' => $edit['pass'])), t('User login'));
+    $this->assertTrue(!empty($account->uid), t('User created with name %name and pass %pass', array('%name' => $account->name, '%pass' => $account->pass)), t('User login'));
     if (empty($account->uid)) {
       return FALSE;
     }
 
     // Add the raw password so that we can log in as this user.
-    $account->pass_raw = $edit['pass'];
+    $account->pass_raw = $account->pass;
 
     return $account;
   }
